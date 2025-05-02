@@ -24,15 +24,10 @@
  */
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { configureServer, server } from "./server.js";
-import { clickUpServices } from "./services/shared.js";
+// server.js is imported dynamically after configuration
 import { info, error } from "./logger.js";
-import config from "./config.js";
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { initConfig } from "./config.js";
 
-// Get directory name for module paths
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
@@ -51,6 +46,8 @@ process.on('unhandledRejection', (reason, promise) => {
  */
 async function main() {
   try {
+    // Initialize configuration from CLI args and environment
+    initConfig();
     info("Starting ClickUp MCP Server...");
     
     // Log essential information about the environment
@@ -61,14 +58,15 @@ async function main() {
       arch: process.arch
     });
     
-    // Configure the server with all handlers
+    // Dynamically import and configure the server with all handlers
     info("Configuring server request handlers");
-    await configureServer();
+    const serverModule = await import("./server.js");
+    await serverModule.configureServer();
     
     // Connect using stdio transport
     info("Connecting to MCP stdio transport");
     const transport = new StdioServerTransport();
-    await server.connect(transport);
+    await serverModule.server.connect(transport);
     
     info("Server startup complete - ready to handle requests");
   } catch (err) {

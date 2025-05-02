@@ -9,38 +9,39 @@
  */
 
 import { createClickUpServices, ClickUpServices } from './clickup/index.js';
-import config from '../config.js';
+import { getConfig } from '../config.js';
 import { Logger } from '../logger.js';
 
+// Logger for service initialization events
 const logger = new Logger('SharedServices');
 
-// Singleton instances
-let clickUpServicesInstance: ClickUpServices | null = null;
-
 /**
- * Get or create the ClickUp services instance
+ * Proxy for lazy initialization of ClickUp services
  */
-function getClickUpServices(): ClickUpServices {
-  if (!clickUpServicesInstance) {
-    logger.info('Creating shared ClickUp services singleton');
-    
-    // Create the services instance
-    clickUpServicesInstance = createClickUpServices({
-      apiKey: config.clickupApiKey,
-      teamId: config.clickupTeamId
-    });
-    
-    // Log what services were initialized with more clarity
-    logger.info('Services initialization complete', { 
-      services: Object.keys(clickUpServicesInstance).join(', '),
-      teamId: config.clickupTeamId
-    });
+const _servicesProxyTarget: any = {};
+export const clickUpServices = new Proxy(_servicesProxyTarget, {
+  get(target, prop: keyof ClickUpServices, receiver) {
+    if (!target._instance) {
+      try {
+        const cfg = getConfig();
+        logger.info('Creating shared ClickUp services singleton', { teamId: cfg.clickupTeamId });
+        target._instance = createClickUpServices({
+          apiKey: cfg.clickupApiKey,
+          teamId: cfg.clickupTeamId
+        });
+        logger.info('Services initialization complete', {
+          services: Object.keys(target._instance).join(', '),
+          teamId: cfg.clickupTeamId
+        });
+      } catch (err) {
+        // Configuration not initialized yet; defer initialization
+        throw err;
+      }
+    }
+    const instance: ClickUpServices = target._instance;
+    return (instance as any)[prop];
   }
-  return clickUpServicesInstance;
-}
-
-// Create a single instance of ClickUp services to be shared
-export const clickUpServices = getClickUpServices();
+}) as ClickUpServices;
 
 // Export individual services for convenience
 export const {

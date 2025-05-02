@@ -13,24 +13,11 @@
  * no parameter is passed. Pass it as 'true' (string) to enable it.
  */
 
-// Parse any command line environment arguments
-const args = process.argv.slice(2);
-const envArgs: { [key: string]: string } = {};
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--env' && i + 1 < args.length) {
-    const [key, value] = args[i + 1].split('=');
-    if (key === 'CLICKUP_API_KEY') envArgs.clickupApiKey = value;
-    if (key === 'CLICKUP_TEAM_ID') envArgs.clickupTeamId = value;
-    if (key === 'DOCUMENT_SUPPORT') envArgs.documentSupport = value;
-    if (key === 'DOCUMENT_MODEL') envArgs.documentSupport = value; // Backward compatibility
-    if (key === 'DOCUMENT_MODULE') envArgs.documentSupport = value; // Backward compatibility
-    if (key === 'LOG_LEVEL') envArgs.logLevel = value;
-    if (key === 'DISABLED_TOOLS') envArgs.disabledTools = value;
-    if (key === 'DISABLED_COMMANDS') envArgs.disabledTools = value; // Backward compatibility
-    i++;
-  }
-}
-
+// Initialization and retrieval functions for configuration
+/**
+ * Initialize and retrieve configuration values for ClickUp MCP Server.
+ * Supports Node.js (process.env and CLI args) and Cloudflare Workers (env map).
+ */
 // Log levels enum
 export enum LogLevel {
   TRACE = 0,
@@ -39,25 +26,20 @@ export enum LogLevel {
   WARN = 3,
   ERROR = 4,
 }
-
 // Parse LOG_LEVEL string to LogLevel enum
 export const parseLogLevel = (levelStr: string | undefined): LogLevel => {
-  if (!levelStr) return LogLevel.ERROR; // Default to ERROR if not specified
-  
+  if (!levelStr) return LogLevel.ERROR;
   switch (levelStr.toUpperCase()) {
     case 'TRACE': return LogLevel.TRACE;
     case 'DEBUG': return LogLevel.DEBUG;
     case 'INFO': return LogLevel.INFO;
     case 'WARN': return LogLevel.WARN;
     case 'ERROR': return LogLevel.ERROR;
-    default:
-      // Don't use console.error as it interferes with JSON-RPC communication
-      return LogLevel.ERROR;
+    default: return LogLevel.ERROR;
   }
 };
-
-// Define required configuration interface
-interface Config {
+// Configuration interface
+export interface Config {
   clickupApiKey: string;
   clickupTeamId: string;
   enableSponsorMessage: boolean;
@@ -65,31 +47,54 @@ interface Config {
   logLevel: LogLevel;
   disabledTools: string[];
 }
-
-// Load configuration from command line args or environment variables
-const configuration: Config = {
-  clickupApiKey: envArgs.clickupApiKey || process.env.CLICKUP_API_KEY || '',
-  clickupTeamId: envArgs.clickupTeamId || process.env.CLICKUP_TEAM_ID || '',
-  enableSponsorMessage: process.env.ENABLE_SPONSOR_MESSAGE !== 'false',
-  documentSupport: envArgs.documentSupport || process.env.DOCUMENT_SUPPORT || process.env.DOCUMENT_MODULE || process.env.DOCUMENT_MODEL || 'false',
-  logLevel: parseLogLevel(envArgs.logLevel || process.env.LOG_LEVEL),
-  disabledTools: (
-    (envArgs.disabledTools || process.env.DISABLED_TOOLS || process.env.DISABLED_COMMANDS)?.split(',').map(cmd => cmd.trim()).filter(cmd => cmd !== '') || []
-  ),
-};
-
-// Don't log to console as it interferes with JSON-RPC communication
-
-// Validate only the required variables are present
-const requiredVars = ['clickupApiKey', 'clickupTeamId'];
-const missingEnvVars = requiredVars
-  .filter(key => !configuration[key as keyof Config])
-  .map(key => key);
-
-if (missingEnvVars.length > 0) {
-  throw new Error(
-    `Missing required environment variables: ${missingEnvVars.join(', ')}`
-  );
+let configuration: Config | null = null;
+// Initialization options
+interface InitOptions {
+  args?: string[];
+  env?: Record<string, string | undefined>;
 }
-
-export default configuration;
+/**
+ * Initialize configuration. Call once before getConfig().
+ * @param options Optional overrides for args (CLI) and env map.
+ */
+export function initConfig(options: InitOptions = {}): void {
+  if (configuration) return;
+  const args = options.args ?? (typeof process !== 'undefined' && process.argv ? process.argv.slice(2) : []);
+  const envVars = options.env ?? (typeof process !== 'undefined' && process.env ? process.env : {} as Record<string, string>);
+  // Parse --env KEY=VALUE arguments
+  const cliEnv: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--env' && args[i + 1]) {
+      const [key, val] = args[i + 1].split('=');
+      if (key && val !== undefined) cliEnv[key] = val;
+      i++;
+    }
+  }
+  // Build configuration
+  const cfg: Config = {
+    clickupApiKey: cliEnv['CLICKUP_API_KEY'] || envVars['CLICKUP_API_KEY'] || '',
+    clickupTeamId: cliEnv['CLICKUP_TEAM_ID'] || envVars['CLICKUP_TEAM_ID'] || '',
+    enableSponsorMessage: (envVars['ENABLE_SPONSOR_MESSAGE'] ?? '') !== 'false',
+    documentSupport: cliEnv['DOCUMENT_SUPPORT'] || envVars['DOCUMENT_SUPPORT'] || envVars['DOCUMENT_MODULE'] || envVars['DOCUMENT_MODEL'] || 'false',
+    logLevel: parseLogLevel(cliEnv['LOG_LEVEL'] || envVars['LOG_LEVEL']),
+    disabledTools: (cliEnv['DISABLED_TOOLS'] || envVars['DISABLED_TOOLS'] || envVars['DISABLED_COMMANDS'] || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s),
+  };
+  // Warn if required vars are missing
+  const missing = ['clickupApiKey', 'clickupTeamId'].filter(k => !cfg[k as keyof Config]);
+  if (missing.length > 0) {
+    console.warn(`Missing required environment variables (will proceed, but may fail): ${missing.join(', ')}`);
+  }
+  configuration = cfg;
+}
+/**
+ * Retrieve the initialized configuration
+ */
+export function getConfig(): Config {
+  if (!configuration) {
+    throw new Error('Configuration not initialized. Call initConfig() first.');
+  }
+  return configuration;
+}

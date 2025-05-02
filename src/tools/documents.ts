@@ -10,7 +10,7 @@
 
 import { CreateDocumentData, DocumentPagesOptions, UpdateDocumentPageData } from '../services/clickup/types.js';
 import { workspaceService } from '../services/shared.js';
-import config from '../config.js';
+import { getConfig } from '../config.js';
 import { sponsorService } from '../utils/sponsor-service.js';
 import { Logger } from "../logger.js";
 import { clickUpServices } from "../services/shared.js";
@@ -312,7 +312,7 @@ export async function handleCreateDocument(parameters: any) {
       id: newDocument.id,
       name: newDocument.name,
       parent: newDocument.parent,
-      url: `https://app.clickup.com/${config.clickupTeamId}/v/d/${newDocument.id}`,
+      url: `https://app.clickup.com/${getConfig().clickupTeamId}/v/d/${newDocument.id}`,
       message: `Document "${name}" created successfully`
     }, true);
   } catch (error: any) {
@@ -353,7 +353,7 @@ export async function handleGetDocument(parameters: any) {
       creator: document.creator,
       public: document.public,
       type: document.type,
-      url: `https://app.clickup.com/${config.clickupTeamId}/v/d/${document.id}`
+      url: `https://app.clickup.com/${getConfig().clickupTeamId}/v/d/${document.id}`
     }, true);
   } catch (error: any) {
     return sponsorService.createErrorResponse(`Failed to retrieve document: ${error.message}`);
@@ -403,7 +403,7 @@ export async function handleListDocuments(parameters: any) {
     const documents = response.docs.map(doc => ({
       id: doc.id,
       name: doc.name,
-      url: `https://app.clickup.com/${config.clickupTeamId}/v/d/${doc.id}`,
+      url: `https://app.clickup.com/${getConfig().clickupTeamId}/v/d/${doc.id}`,
       parent: doc.parent,
       created: new Date(doc.date_created).toISOString(),
       updated: new Date(doc.date_updated).toISOString(),

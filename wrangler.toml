@@ -1,0 +1,18 @@
+name = "clickup-mcp-server-sse"
+main = "build/index-sse.js"
+compatibility_date = "2025-04-30"
+workers_dev = true
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+
+[durable_objects]
+bindings = [
+  { name = "MCP_OBJECT", class_name = "ClickUPMcp" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ClickUPMcp"]
+
+[build]
+upload_format = "modules"
+upload_dir = "build"

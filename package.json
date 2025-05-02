@@ -1,6 +1,6 @@
 {
-  "name": "@taazkareem/clickup-mcp-server",
-  "version": "0.7.2",
+  "name": "@rigo-m/clickup-mcp-server",
+  "version": "0.8.0",
   "description": "ClickUp MCP Server - Integrate ClickUp tasks with AI through Model Context Protocol",
   "type": "module",
   "main": "build/index.js",
@@ -18,6 +18,8 @@
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "start": "node build/index.js",
     "dev": "tsc -w",
+    "dev:worker": "wrangler dev src/index-sse.ts",
+    "cf-typegen": "wrangler types",
     "prepare": "npm run build"
   },
   "keywords": [
@@ -55,13 +57,17 @@
   },
   "homepage": "https://github.com/taazkareem/clickup-mcp-server#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.6.0",
     "axios": "^1.6.7",
-    "dotenv": "^16.4.1"
+    "dotenv": "^16.4.1",
+    "hono": "^3.1.7"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250430.0",
+    "@modelcontextprotocol/sdk": "^1.10.2",
     "@types/node": "^20.11.16",
-    "typescript": "^5.3.3"
+    "agents": "^0.0.75",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.0.0"
   },
   "engines": {
     "node": ">=18.0.0 <23.0.0"

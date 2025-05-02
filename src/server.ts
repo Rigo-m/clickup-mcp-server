@@ -4,7 +4,8 @@
  *
  * MCP Server for ClickUp integration
  */
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -12,8 +13,7 @@ import {
   GetPromptRequestSchema,
   ListResourcesRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { createClickUpServices } from "./services/clickup/index.js";
-import config from "./config.js";
+import { getConfig } from "./config.js";
 import { workspaceHierarchyTool, handleGetWorkspaceHierarchy } from "./tools/workspace.js";
 import {
   createTaskTool,
@@ -94,7 +94,7 @@ const logger = new Logger('Server');
 // Use existing services from shared module instead of creating new ones
 const { workspace } = clickUpServices;
 
-export const server = new Server(
+export const McpServerInstance = new McpServer(
   {
     name: "clickup-mcp-server",
     version: "0.7.2",
@@ -108,8 +108,10 @@ export const server = new Server(
   }
 );
 
+export const server = McpServerInstance.server
+
 const documentModule = () => {
-  if (config.documentSupport === 'true') {
+  if (getConfig().documentSupport === 'true') {
     return [
       createDocumentTool,
       getDocumentTool,
@@ -129,7 +131,7 @@ const documentModule = () => {
  */
 export function configureServer() {
   logger.info("Registering server request handlers");
-  
+
   // Register ListTools handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     logger.debug("Received ListTools request");
@@ -169,7 +171,7 @@ export function configureServer() {
         addTagToTaskTool,
         removeTagFromTaskTool,
         ...documentModule()
-      ].filter(tool => !config.disabledTools.includes(tool.name))
+      ].filter(tool => !getConfig().disabledTools.includes(tool.name))
     };
   });
 
@@ -184,24 +186,24 @@ export function configureServer() {
     toolCount: 40,
     categories: ["workspace", "task", "time-tracking", "list", "folder", "tag", "document"]
   });
-  
+
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const { name, arguments: params } = req.params;
-    
+
     // Improved logging with more context
-    logger.info(`Received CallTool request for tool: ${name}`, { 
-      params 
+    logger.info(`Received CallTool request for tool: ${name}`, {
+      params
     });
-    
+
     // Check if the tool is disabled
-    if (config.disabledTools.includes(name)) {
+    if (getConfig().disabledTools.includes(name)) {
       logger.warn(`Tool execution blocked: Tool '${name}' is disabled.`);
       throw {
         code: -32601,
         message: `Tool '${name}' is disabled.`
       };
     }
-    
+
     try {
       // Handle tool calls by routing to the appropriate handler
       switch (name) {
@@ -293,7 +295,7 @@ export function configureServer() {
       }
     } catch (err) {
       logger.error(`Error executing tool: ${name}`, err);
-      
+
       // Transform error to a more descriptive JSON-RPC error
       if (err.name === "UnknownToolError") {
         throw {

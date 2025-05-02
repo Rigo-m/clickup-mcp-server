@@ -13,7 +13,6 @@ import {
   ClickUpFolder
 } from '../services/clickup/types.js';
 import { clickUpServices } from '../services/shared.js';
-import config from '../config.js';
 import { sponsorService } from '../utils/sponsor-service.js';
 
 // Use shared services instance

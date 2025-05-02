@@ -8,25 +8,31 @@
  * writing logs to only the log file to avoid interfering with JSON-RPC.
  */
 
-import { createWriteStream } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import config, { LogLevel } from './config.js';
+import { getConfig, LogLevel } from './config.js';
 
-// Get the directory name of the current module
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Detect Node.js environment
+const isNode = typeof process !== 'undefined' && typeof process.versions?.node === 'string';
+// Process ID for logging (only in Node)
+const pid = isNode ? process.pid : 0;
+// File logging stream (Node only)
+let logStream: any = null;
+(async () => {
+  if (isNode) {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const url = await import('url');
+      // Resolve directory name
+      const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+      const logFileName = 'server.log';
+      logStream = fs.createWriteStream(path.join(__dirname, logFileName), { flags: 'w' });
+      logStream.write(`Logging initialized to ${path.join(__dirname, logFileName)}\n`);
+    } catch {
+      // Ignore if dynamic import fails
+    }
+  }
+})();
 
-// Current process ID for logging
-const pid = process.pid;
-
-// Create a write stream for logging - use a fixed filename in the build directory
-const logFileName = 'server.log';
-const logStream = createWriteStream(join(__dirname, logFileName), { flags: 'w' });
-// Write init message to log file only
-logStream.write(`Logging initialized to ${join(__dirname, logFileName)}\n`);
-
-// Use the configured log level from config.ts
-const configuredLevel = config.logLevel;
 
 // Re-export LogLevel enum
 export { LogLevel };
@@ -37,7 +43,8 @@ export { LogLevel };
  * @returns True if the level should be logged
  */
 export function isLevelEnabled(level: LogLevel): boolean {
-  return level >= configuredLevel;
+  // Compare against current config log level
+  return level >= getConfig().logLevel;
 }
 
 /**
@@ -88,8 +95,12 @@ export function log(level: 'trace' | 'debug' | 'info' | 'warn' | 'error', messag
     }
   }
 
-  // Write to file only, not to stderr which would interfere with JSON-RPC
-  logStream.write(logMessage + '\n');
+  // Write to file in Node, or console otherwise
+  if (isNode && logStream) {
+    logStream.write(logMessage + '\n');
+  } else {
+    console.log(logMessage);
+  }
 }
 
 /**
@@ -206,10 +217,16 @@ export class Logger {
   }
 }
 
-// Handle SIGTERM for clean shutdown
-process.on('SIGTERM', () => {
-  log('info', 'Received SIGTERM signal, shutting down...');
-  logStream.end(() => {
-    process.exit(0);
+// Handle SIGTERM for clean shutdown in Node.js only
+if (isNode) {
+  process.on('SIGTERM', () => {
+    log('info', 'Received SIGTERM signal, shutting down...');
+    if (logStream) {
+      logStream.end(() => {
+        process.exit(0);
+      });
+    } else {
+      process.exit(0);
+    }
   });
-}); 
+}

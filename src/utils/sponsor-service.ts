@@ -8,7 +8,7 @@
  */
 
 import { Logger } from '../logger.js';
-import config from '../config.js';
+import { getConfig } from '../config.js';
 
 // Create logger instance for this module
 const logger = new Logger('SponsorService');
@@ -21,7 +21,7 @@ export class SponsorService {
   private readonly sponsorUrl: string = 'https://github.com/sponsors/taazkareem';
   
   constructor() {
-    this.isEnabled = config.enableSponsorMessage;
+    this.isEnabled = getConfig().enableSponsorMessage;
     logger.info('SponsorService initialized', { enabled: this.isEnabled });
   }
   
@@ -101,5 +101,21 @@ export class SponsorService {
   }
 }
 
-// Export a singleton instance
-export const sponsorService = new SponsorService(); 
+// Export a lazily-initialized singleton proxy
+type SponsorServiceType = SponsorService & Record<PropertyKey, any>;
+const _sponsorProxyTarget: any = {};
+const sponsorService: SponsorServiceType = new Proxy(_sponsorProxyTarget, {
+  get(target, prop, receiver) {
+    if (!target._instance) {
+      // Lazy-init SponsorService once configuration is available
+      target._instance = new SponsorService();
+    }
+    const instance: any = target._instance;
+    const value = instance[prop as keyof SponsorServiceType];
+    if (typeof value === 'function') {
+      return value.bind(instance);
+    }
+    return value;
+  }
+}) as SponsorServiceType;
+export { sponsorService };
